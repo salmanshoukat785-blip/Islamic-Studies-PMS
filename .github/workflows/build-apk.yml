@@ -37,14 +37,44 @@ jobs:
         continue-on-error: true
         run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
 
+      - name: Show Android SDK
+        continue-on-error: true
+        run: |
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          ls "$ANDROID_HOME" || true
+          ls "$ANDROID_HOME/platforms" || true
+          ls "$ANDROID_HOME/build-tools" || true
+
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.9"
 
       - name: Build debug APK
+        timeout-minutes: 25
         working-directory: ${{ env.PROJECT_DIR }}
-        run: gradle assembleDebug --stacktrace
+        run: |
+          set +e
+          gradle assembleDebug --no-daemon --console=plain --stacktrace > build.log 2>&1
+          STATUS=$?
+          echo "Gradle exit code: $STATUS"
+          if [ $STATUS -ne 0 ]; then
+            echo "=============== KOTLIN / COMPILE ERRORS ==============="
+            grep -n "^e: " build.log | head -40
+            echo "=============== WHAT WENT WRONG ==============="
+            grep -n -A8 "What went wrong" build.log | head -40
+            echo "=============== LAST 30 LINES ==============="
+            tail -n 30 build.log
+          fi
+          exit $STATUS
+
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: ${{ env.PROJECT_DIR }}/build.log
+          if-no-files-found: ignore
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
