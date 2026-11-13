@@ -82,3 +82,27 @@ jobs:
           name: IslamicStudiesAcademy-debug-apk
           path: ${{ env.PROJECT_DIR }}/app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
+
+      - name: Run unit tests (does not block the APK)
+        continue-on-error: true
+        timeout-minutes: 15
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          set +e
+          gradle testDebugUnitTest --no-daemon --console=plain > test.log 2>&1
+          STATUS=$?
+          echo "Unit test exit code: $STATUS"
+          if [ $STATUS -ne 0 ]; then
+            echo "=============== TEST PROBLEMS ==============="
+            grep -n -E "FAILED|^e: |What went wrong" test.log | head -30
+            tail -n 25 test.log
+          fi
+          exit $STATUS
+
+      - name: Upload test log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-log
+          path: ${{ env.PROJECT_DIR }}/test.log
+          if-no-files-found: ignore
